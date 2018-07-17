@@ -1,6 +1,6 @@
 export default class Player  {
   constructor(scene, x, y, sprite) {
-    this.player = scene.physics.add.sprite(0, 0, 'player');
+    this.player = scene.physics.add.sprite(0, 250, 'player');
     this.player.setCollideWorldBounds(true);
 
     this.xSpeed = 160;
@@ -16,7 +16,6 @@ export default class Player  {
   }
 
   increasePlayerScore() {
-    console.log("up stuff")
     this.winscore++
     localStorage.setItem('myScore', this.score);
   }
@@ -30,11 +29,11 @@ export default class Player  {
     if(this.alive){
       switch(direction){
         case 'left':
-          this.player.facing = 'left';
+          this.facing = 'left';
           this.player.setVelocityX(-this.xSpeed);
         break;
         case 'right':
-          this.player.facing = 'right';
+          this.facing = 'right';
           this.player.setVelocityX(this.xSpeed);
         break;
         case 'up':
@@ -53,9 +52,7 @@ export default class Player  {
   }
 
   die() {
-    console.log('dead')
     if(this.alive) {
-    console.log('deader')
       this.alive = false;
       this.player.setVisible(false);
       this.player.body.setAllowGravity(false);
@@ -64,7 +61,6 @@ export default class Player  {
   }
 
   spawn(player) {
-    console.log('alive',this.alive)
     if(this.alive === false){
       this.alive = true;
       this.player.setVisible(true);
