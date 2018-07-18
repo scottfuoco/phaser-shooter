@@ -13,7 +13,7 @@ export default class GameState extends Phaser.Scene {
     };
 
     addOtherPlayer = player => {
-        const otherPlayer = new BadGuy(this, player.playerId, player.x, player.y, 'player');
+        const otherPlayer = new BadGuy(this, player.playerId, player.x, player.y, 'enemyPlayer');
         this.badGuys.add(otherPlayer.getInstance());
     };
 
@@ -44,7 +44,8 @@ export default class GameState extends Phaser.Scene {
             }
         });
     };
-    fireBullet = facing => {
+
+    fireBullet = () => {
         //  To avoid them being allowed to fire too fast we set a time limit
         if (this.time.now > this.bulletTime) {
             //  Grab the first bullet we can from the pool
@@ -55,16 +56,31 @@ export default class GameState extends Phaser.Scene {
                 } else if (this.player.facing === 'left') {
                     bullet.setVelocity(-1000, 0).setAngle(180);
                 }
+                socket.emit('playerBulletFire', { x: bullet.x, y: bullet.y, facing: this.player.facing, playerId: socket.id });
             }
             this.bulletTime = this.time.now + 320;
         }
     };
+
+    enemyBulletFire = bulletData => {
+        if (this.enemyBullets.countActive(true) < this.enemyBullets.maxSize) {
+            const enemyBullet = this.enemyBullets.get(bulletData.x, bulletData.y);
+            if (bulletData.facing === 'right') {
+                enemyBullet.setVelocity(1000, 0);
+            } else if (bulletData.facing === 'left') {
+                enemyBullet.setVelocity(-1000, 0).setAngle(180);
+            }
+        }
+    };
+
     preload() {
         this.load.image('goodPlatform', 'img/goodPlatform.png');
         this.load.image('badPlatform', 'img/flaming-death-cloud.png');
         this.load.image('player', 'img/player.png');
+        this.load.image('enemyPlayer', 'img/enemyPlayer.png');
         this.load.audio('bulletFire', ['audio/bulletFire.mp3']);
         this.load.image('bullet', 'img/bullet.png');
+        this.load.image('enemyBullet', 'img/enemyBullet.png');
     }
 
     create() {
@@ -75,11 +91,21 @@ export default class GameState extends Phaser.Scene {
         this.bulletFire.stop();
 
         this.bulletTime = 0;
-        this.player = new Player(this);
-        this.badGuys = this.physics.add.group();
+        this.player = new Player(this, 0, 0, 'player');
+        this.badGuys = this.physics.add.staticGroup({
+          setCollideWorldBounds: true
+        });
+
         this.bullets = this.physics.add.group({
             defaultKey: 'bullet',
             maxSize: 7,
+            active: false,
+            allowGravity: false
+        });
+
+        this.enemyBullets = this.physics.add.group({
+            defaultKey: 'enemyBullet',
+            maxSize: 200,
             active: false,
             allowGravity: false
         });
@@ -99,6 +125,7 @@ export default class GameState extends Phaser.Scene {
         socket.on('disconnect', this.removePlayer);
         socket.on('playerMoved', this.playerMoved);
         socket.on('currentPlayers', this.addCurrentPlayers);
+        socket.on('enemyBulletFire', this.enemyBulletFire);
 
         const badPlatforms = this.physics.add.staticGroup();
         badPlatforms.create(265, 440, 'badPlatform');
@@ -118,6 +145,17 @@ export default class GameState extends Phaser.Scene {
 
         this.physics.add.collider(this.bulletBoundaryLeft, this.bullets, this.collisionHandlerBulletBulletBoundary);
         this.physics.add.collider(this.bulletBoundaryRight, this.bullets, this.collisionHandlerBulletBulletBoundary);
+
+        this.physics.add.collider(
+            this.bulletBoundaryLeft,
+            this.enemyBullets,
+            this.collisionHandlerEnemyBulletBulletBoundary
+        );
+        this.physics.add.collider(
+            this.bulletBoundaryRight,
+            this.enemyBullets,
+            this.collisionHandlerEnemyBulletBulletBoundary
+        );
     }
 
     update() {
@@ -147,8 +185,16 @@ export default class GameState extends Phaser.Scene {
 
     // Group vs Sprite collision the group element is always 2nd param
     collisionHandlerBulletBulletBoundary = (boundary, bullet) => {
+      console.log('bullet destroyed')
         bullet.destroy();
     };
+
+    // Group vs Sprite collision the group element is always 2nd param
+    collisionHandlerEnemyBulletBulletBoundary = (boundary, enemyBullet) => {
+      console.log('enemy bullet destroyed')
+        enemyBullet.destroy();
+    };
+
     collisionHandlerPlayerBadPlatform = (player, badPlatform) => {
         // socket.emit('DJDie', { data: { id: socket.id() }, myID: socket.id() });
         this.player.die();
